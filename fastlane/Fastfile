@@ -1,0 +1,34 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the app for the simulator — the fast, no-signing check"
+  lane :build_simulator do
+    # A specific simulator, not "generic/platform=iOS Simulator" — the
+    # generic destination builds a universal binary for BOTH arm64 and
+    # x86_64, which recompiles the entire dependency tree twice. A named
+    # simulator builds one architecture only, and is what CI actually
+    # wants: "does it run", not "does it run on hardware nobody has".
+    build_app(
+      scheme: "gRPC_Wallet_Demo",
+      project: "gRPC_Wallet_Demo.xcodeproj",
+      destination: "platform=iOS Simulator,name=iPhone 17 Pro",
+      skip_archive: true,
+      skip_codesigning: true
+    )
+  end
+
+  desc "Run the WalletKit test target — no simulator/app boot required"
+  lane :test do
+    run_tests(
+      package_path: "WalletKit",
+      scheme: "WalletKit",
+      destination: "platform=iOS Simulator,name=iPhone 17 Pro"
+    )
+  end
+
+  desc "What CI actually runs on every push: test, then build"
+  lane :ci do
+    test
+    build_simulator
+  end
+end

@@ -6,75 +6,56 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    let coordinator: AppCoordinator
+    let viewModel: BalanceViewModel
+    let screenshotDetector: ScreenshotDetector
 
     var body: some View {
-        NavigationViewWrapper {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        NavigationStack(path: Binding(
+            get: { coordinator.path },
+            set: { coordinator.path = $0 }
+        )) {
+            VStack(spacing: 20) {
+                // Only the sensitive text sits inside the secure layer.
+                // The trick is designed for static display content, not
+                // interactive controls — buttons stay in normal SwiftUI.
+                SecureContainerView {
+                    Text(viewModel.balanceText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding()
                 }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        }
-    }
+                .frame(height: 60)
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+                if screenshotDetector.screenshotTakenCount > 0 {
+                    Text("⚠️ Screenshot detected \(screenshotDetector.screenshotTakenCount)x")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+                Button("Fetch balance") {
+                    Task { await viewModel.fetchBalance() }
+                }
+                .disabled(viewModel.isLoading)
+
+                Button("Transaction history") {
+                    coordinator.showTransactionHistory()
+                }
+            }
+            .padding()
+            .navigationDestination(for: Route.self) { route in
+                coordinator.destination(for: route)
             }
         }
-    }
-}
-
-fileprivate struct NavigationViewWrapper<Content: View>: View {
-    let content: () -> Content
-
-    var body: some View {
-#if os(macOS)
-        NavigationSplitView {
-            content()
-        } detail: {
-            Text("Select an item")
-        }
-#else
-        content()
-#endif
     }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    let container = AppContainer()
+    ContentView(
+        coordinator: container.makeCoordinator(),
+        viewModel: container.makeBalanceViewModel(),
+        screenshotDetector: ScreenshotDetector()
+    )
 }

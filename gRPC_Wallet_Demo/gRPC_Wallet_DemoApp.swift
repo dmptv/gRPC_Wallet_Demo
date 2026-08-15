@@ -6,27 +6,20 @@
 //
 
 import SwiftUI
-import SwiftData
 
 @main
 struct gRPC_Wallet_DemoApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    // The one composition root — the only place that builds real objects.
+    // Everything downstream receives dependencies through init.
+    private let container = AppContainer()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(
+                coordinator: container.makeCoordinator(),
+                viewModel: container.makeBalanceViewModel(),
+                screenshotDetector: ScreenshotDetector()
+            )
         }
-        .modelContainer(sharedModelContainer)
     }
 }
